@@ -305,3 +305,14 @@ export async function setSetting(key, value) {
     updatedAt: serverTimestamp(),
   });
 }
+
+// Customer transaction history helper
+export async function getCustomerTransactions(customerId) {
+  const q = query(
+    collections.transactions,
+    where('customerId', '==', customerId),
+    orderBy('date', 'desc')
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}

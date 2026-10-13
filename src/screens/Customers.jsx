@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'preact/hooks';
 import { collection, query, where, getDocs, orderBy, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase.js';
-import { collections, createTransaction, updateCustomerBalance, createCustomer } from '../db/collections.js';
-import { formatCurrency, getWhatsAppLink } from '../lib/utils.js';
+import { collections, createTransaction, updateCustomerBalance, createCustomer, getCustomerTransactions } from '../db/collections.js';
+import { formatCurrency, getWhatsAppLink, formatDate } from '../lib/utils.js';
 import { PAYMENT_METHODS, TRANSACTION_TYPES } from '../lib/constants.js';
 import { showToast } from '../components/Toast.jsx';
 
@@ -10,6 +10,9 @@ export default function Customers({ user }) {
   const [customers, setCustomers] = useState([]);
   const [filter, setFilter] = useState('all');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [viewMode, setViewMode] = useState(null); // 'payment' or 'history'
+  const [customerTransactions, setCustomerTransactions] = useState([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS.CASH);
   const [processingPayment, setProcessingPayment] = useState(false);
@@ -34,6 +37,27 @@ export default function Customers({ user }) {
       console.error('Error loading customers:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCustomerTransactions = async (customerId) => {
+    setLoadingTransactions(true);
+    try {
+      const transactions = await getCustomerTransactions(customerId);
+      setCustomerTransactions(transactions);
+    } catch (error) {
+      console.error('Error loading transactions:', error);
+      showToast('Error loading transaction history', 'error');
+    } finally {
+      setLoadingTransactions(false);
+    }
+  };
+
+  const handleCustomerClick = (customer, mode = 'payment') => {
+    setSelectedCustomer(customer);
+    setViewMode(mode);
+    if (mode === 'history') {
+      loadCustomerTransactions(customer.id);
     }
   };
 
@@ -206,15 +230,17 @@ export default function Customers({ user }) {
           <div
             key={customer.id}
             class="card"
-            style={{ cursor: 'pointer' }}
-            onClick={() => setSelectedCustomer(customer)}
+            style="cursor: pointer;"
           >
             <div class="flex justify-between items-center">
-              <div>
+              <div
+                style="flex: 1; min-width: 0;"
+                onClick={() => handleCustomerClick(customer, 'payment')}
+              >
                 <div class="font-bold">{customer.name}</div>
                 <div class="text-sm text-gray">{customer.phone}</div>
               </div>
-              <div class="text-right">
+              <div class="text-right" style="min-width: 100px; padding-left: var(--space-sm);">
                 <div class={`font-bold ${customer.balance > 0 ? 'text-green' : customer.balance < 0 ? 'text-red' : ''}`}>
                   {formatCurrency(customer.balance)}
                 </div>
@@ -222,62 +248,171 @@ export default function Customers({ user }) {
                   {customer.balance > 0 ? 'prepaid' : customer.balance < 0 ? 'owing' : 'settled'}
                 </div>
               </div>
+              <button
+                class="btn btn-sm btn-outline"
+                style="margin-left: var(--space-sm); flex-shrink: 0;"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCustomerClick(customer, 'history');
+                }}
+              >
+                History
+              </button>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Payment Modal */}
+      {/* Customer Modal */}
       {selectedCustomer && (
         <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000; background-color: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; padding: var(--space-md);">
-          <div class="card" style="max-width: 400px; width: 100%; max-height: 90vh; overflow-y: auto;">
+          <div class="card" style="max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto;">
             <div class="flex justify-between items-center mb-md">
-              <h3>Receive Payment</h3>
-              <button class="btn btn-ghost" onClick={() => setSelectedCustomer(null)}>✕</button>
+              <h3>{viewMode === 'history' ? 'Transaction History' : 'Receive Payment'}</h3>
+              <button class="btn btn-ghost" onClick={() => {
+                setSelectedCustomer(null);
+                setViewMode(null);
+                setCustomerTransactions([]);
+                setPaymentAmount('');
+              }}>✕</button>
             </div>
 
-            <div class="mb-md">
-              <div class="font-bold">{selectedCustomer.name}</div>
-              <div>Current Balance: {formatCurrency(selectedCustomer.balance)}</div>
-            </div>
+            {/* Payment View */}
+            {viewMode === 'payment' && (
+              <>
+                <div class="mb-md">
+                  <div class="font-bold">{selectedCustomer.name}</div>
+                  <div>Current Balance: {formatCurrency(selectedCustomer.balance)}</div>
+                </div>
 
-            <div class="mb-md">
-              <label>Amount</label>
-              <input
-                type="number"
-                value={paymentAmount}
-                onInput={(e) => setPaymentAmount(e.target.value)}
-                placeholder="Enter amount"
-              />
-            </div>
+                <div class="mb-md">
+                  <label>Amount</label>
+                  <input
+                    type="number"
+                    value={paymentAmount}
+                    onInput={(e) => setPaymentAmount(e.target.value)}
+                    placeholder="Enter amount"
+                  />
+                </div>
 
-            <div class="mb-md">
-              <label>Payment Method</label>
-              <div class="grid grid-2">
-                {Object.values(PAYMENT_METHODS).filter(m => m !== PAYMENT_METHODS.CREDIT && m !== PAYMENT_METHODS.WALLET).map(method => (
-                  <button
-                    key={method}
-                    class={`btn ${paymentMethod === method ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => setPaymentMethod(method)}
-                  >
-                    {method.charAt(0).toUpperCase() + method.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
+                <div class="mb-md">
+                  <label>Payment Method</label>
+                  <div class="grid grid-2">
+                    {Object.values(PAYMENT_METHODS).filter(m => m !== PAYMENT_METHODS.CREDIT && m !== PAYMENT_METHODS.WALLET).map(method => (
+                      <button
+                        key={method}
+                        class={`btn ${paymentMethod === method ? 'btn-primary' : 'btn-outline'}`}
+                        onClick={() => setPaymentMethod(method)}
+                      >
+                        {method.charAt(0).toUpperCase() + method.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            <button class="btn btn-primary btn-block" onClick={handlePayment} disabled={processingPayment}>
-              {processingPayment ? 'Recording...' : 'Record Payment'}
-            </button>
+                <button class="btn btn-primary btn-block" onClick={handlePayment} disabled={processingPayment}>
+                  {processingPayment ? 'Recording...' : 'Record Payment'}
+                </button>
 
-            <div class="divider"></div>
+                <div class="divider"></div>
 
-            <button
-              class="btn btn-outline btn-block"
-              onClick={() => shareStatement(selectedCustomer)}
-            >
-              Share Statement via WhatsApp
-            </button>
+                <button
+                  class="btn btn-outline btn-block"
+                  onClick={() => setViewMode('history')}
+                >
+                  View Transaction History
+                </button>
+
+                <div class="divider"></div>
+
+                <button
+                  class="btn btn-outline btn-block"
+                  onClick={() => shareStatement(selectedCustomer)}
+                >
+                  Share Statement via WhatsApp
+                </button>
+              </>
+            )}
+
+            {/* History View */}
+            {viewMode === 'history' && (
+              <>
+                <div class="mb-md">
+                  <div class="font-bold">{selectedCustomer.name}</div>
+                  <div class="text-sm text-gray">{selectedCustomer.phone}</div>
+                  <div>Current Balance: <span class={`font-bold ${selectedCustomer.balance > 0 ? 'text-green' : selectedCustomer.balance < 0 ? 'text-red' : ''}`}>
+                    {formatCurrency(selectedCustomer.balance)}
+                  </span></div>
+                </div>
+
+                <div class="divider"></div>
+
+                {loadingTransactions ? (
+                  <div class="flex items-center justify-center" style="min-height: 100px;">
+                    <div class="spinner"></div>
+                  </div>
+                ) : customerTransactions.length === 0 ? (
+                  <div class="text-center text-gray" style="padding: var(--space-lg);">
+                    No transactions found
+                  </div>
+                ) : (
+                  <div style="max-height: 400px; overflow-y: auto;">
+                    {customerTransactions.map(transaction => (
+                      <div
+                        key={transaction.id}
+                        class="card"
+                        style="padding: var(--space-sm); margin-bottom: var(--space-sm);"
+                      >
+                        <div class="flex justify-between items-start">
+                          <div style="flex: 1;">
+                            <div class="font-bold text-sm">
+                              {transaction.type === TRANSACTION_TYPES.SALE ? 'Sale' :
+                               transaction.type === TRANSACTION_TYPES.PAYMENT ? 'Payment' :
+                               transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
+                            </div>
+                            <div class="text-xs text-gray">
+                              {formatDate(transaction.date)}
+                            </div>
+                            {transaction.note && (
+                              <div class="text-xs text-gray mt-xs">
+                                {transaction.note}
+                              </div>
+                            )}
+                            {transaction.items && transaction.items.length > 0 && (
+                              <div class="text-xs text-gray mt-xs">
+                                {transaction.items.map(item => item.name).join(', ')}
+                              </div>
+                            )}
+                          </div>
+                          <div class="text-right">
+                            <div class={`font-bold ${transaction.type === TRANSACTION_TYPES.SALE ? 'text-red' : 'text-green'}`}>
+                              {transaction.type === TRANSACTION_TYPES.SALE ? '-' : '+'}{formatCurrency(transaction.amount)}
+                            </div>
+                            {transaction.paymentSplit && transaction.paymentSplit.length > 0 && (
+                              <div class="text-xs text-gray">
+                                {transaction.paymentSplit.map(p => p.method).join(', ')}
+                              </div>
+                            )}
+                            {transaction.status === 'void' && (
+                              <div class="badge badge-gray text-xs mt-xs">Voided</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div class="divider"></div>
+
+                <button
+                  class="btn btn-outline btn-block"
+                  onClick={() => setViewMode('payment')}
+                >
+                  Record Payment
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
