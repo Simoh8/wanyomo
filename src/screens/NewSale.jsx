@@ -11,6 +11,8 @@ export default function NewSale({ user }) {
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [cart, setCart] = useState({});
+  const [customPrices, setCustomPrices] = useState({});
+  const [customQuantities, setCustomQuantities] = useState({});
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS.CASH);
   const [paymentSplit, setPaymentSplit] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -53,6 +55,16 @@ export default function NewSale({ user }) {
       
       if (newQty <= 0) {
         delete newCart[productId];
+        setCustomPrices(prev => {
+          const newPrices = { ...prev };
+          delete newPrices[productId];
+          return newPrices;
+        });
+        setCustomQuantities(prev => {
+          const newQtys = { ...prev };
+          delete newQtys[productId];
+          return newQtys;
+        });
       } else {
         newCart[productId] = newQty;
       }
@@ -61,12 +73,28 @@ export default function NewSale({ user }) {
     });
   };
 
+  const updateCustomPrice = (productId, price) => {
+    setCustomPrices(prev => ({
+      ...prev,
+      [productId]: parseFloat(price) || 0
+    }));
+  };
+
+  const updateCustomQuantity = (productId, qty) => {
+    setCustomQuantities(prev => ({
+      ...prev,
+      [productId]: parseFloat(qty) || 0
+    }));
+  };
+
   const getTotal = () => {
     let total = 0;
     for (const [productId, qty] of Object.entries(cart)) {
       const product = products.find(p => p.id === productId);
       if (product) {
-        total += product.sellPrice * qty;
+        const actualQty = customQuantities[productId] || qty;
+        const price = customPrices[productId] || product.sellPrice;
+        total += price * actualQty;
       }
     }
     return total;
@@ -79,8 +107,17 @@ export default function NewSale({ user }) {
     if (!selectedCustomer || paymentMethod === PAYMENT_METHODS.CREDIT) {
       for (const [productId, qty] of Object.entries(cart)) {
         const product = products.find(p => p.id === productId);
-        if (product?.trackStock && (stockLevels[productId] || 0) < qty) {
-          return false;
+        const actualQty = customQuantities[productId] || qty;
+        
+        if (product?.trackStock) {
+          // Convert sale quantity to stock quantity if conversion factor exists
+          const stockQty = product.conversionFactor 
+            ? actualQty / product.conversionFactor 
+            : actualQty;
+          
+          if ((stockLevels[productId] || 0) < stockQty) {
+            return false;
+          }
         }
       }
     }
@@ -109,23 +146,35 @@ export default function NewSale({ user }) {
         const product = products.find(p => p.id === productId);
         if (!product) continue;
 
-        const lineTotal = product.sellPrice * qty;
+        const customPrice = customPrices[productId];
+        const customQty = customQuantities[productId];
+        const actualPrice = customPrice || product.sellPrice;
+        const actualQty = customQty || qty;
+        const lineTotal = actualPrice * actualQty;
         total += lineTotal;
 
         items.push({
           productId,
           name: product.name,
-          qty,
-          unitPrice: product.sellPrice,
+          qty: actualQty,
+          unit: product.saleUnit || product.unit,
+          unitPrice: actualPrice,
           lineTotal,
+          customPrice: customPrice || null,
+          customQuantity: customQty || null,
         });
 
         // Create stock movement
         if (product.trackStock) {
+          // Convert sale quantity to stock quantity if conversion factor exists
+          const stockQty = product.conversionFactor 
+            ? actualQty / product.conversionFactor 
+            : actualQty;
+          
           stockMovements.push({
             productId,
             type: 'sale',
-            qty: -qty,
+            qty: -stockQty,
             unitCost: 0, // Will be fetched from productCosts
             reference: null, // Will be set to transaction ID
             reason: 'Sale',
@@ -152,6 +201,8 @@ export default function NewSale({ user }) {
 
       // Reset cart
       setCart({});
+      setCustomPrices({});
+      setCustomQuantities({});
       setSelectedCustomer(null);
       setPaymentMethod(PAYMENT_METHODS.CASH);
       setPaymentSplit([]);
@@ -171,13 +222,19 @@ export default function NewSale({ user }) {
     const isLow = stock <= product.reorderLevel;
     const isOut = stock === 0;
 
+    // Convert stock to sale unit if conversion factor exists
+    const displayStock = product.conversionFactor 
+      ? (stock * product.conversionFactor).toFixed(1)
+      : stock;
+    const displayUnit = product.saleUnit || product.unit;
+
     if (isOut) {
       return <span class="badge badge-red">Out of stock</span>;
     }
     if (isLow) {
-      return <span class="badge badge-red">Low: {stock}</span>;
+      return <span class="badge badge-red">Low: {displayStock} {displayUnit}</span>;
     }
-    return <span class="badge badge-green">{stock}</span>;
+    return <span class="badge badge-green">{displayStock} {displayUnit}</span>;
   };
 
   return (
@@ -232,8 +289,41 @@ export default function NewSale({ user }) {
               {getStockBadge(product)}
             </div>
             <div class="text-sm text-gray mb-sm">
-              {formatCurrency(product.sellPrice)} / {product.unit}
+              Default: {formatCurrency(product.sellPrice)} / {product.saleUnit || product.unit}
+              {product.saleUnit && product.saleUnit !== product.unit && (
+                <span class="text-xs text-gray ml-sm">
+                  (Stock: {product.unit})
+                </span>
+              )}
             </div>
+            {cart[product.id] > 0 && (
+              <>
+                <div class="mb-sm">
+                  <label class="text-xs">Custom Quantity (optional)</label>
+                  <input
+                    type="number"
+                    class="input input-sm"
+                    value={customQuantities[product.id] || ''}
+                    onChange={(e) => updateCustomQuantity(product.id, e.target.value)}
+                    placeholder={`Default: ${cart[product.id]}`}
+                    step="0.01"
+                    min="0"
+                  />
+                </div>
+                <div class="mb-sm">
+                  <label class="text-xs">Custom Price (optional)</label>
+                  <input
+                    type="number"
+                    class="input input-sm"
+                    value={customPrices[product.id] || ''}
+                    onChange={(e) => updateCustomPrice(product.id, e.target.value)}
+                    placeholder={`Default: ${product.sellPrice}`}
+                    step="0.01"
+                    min="0"
+                  />
+                </div>
+              </>
+            )}
             <div class="flex items-center justify-between">
               <button
                 class="btn btn-secondary btn-sm"
@@ -246,7 +336,15 @@ export default function NewSale({ user }) {
               <button
                 class="btn btn-primary btn-sm"
                 onClick={() => updateCart(product.id, 1)}
-                disabled={product.trackStock && (stockLevels[product.id] || 0) <= (cart[product.id] || 0)}
+                disabled={(() => {
+                  if (!product.trackStock) return false;
+                  const currentQty = customQuantities[product.id] || cart[product.id] || 0;
+                  const nextQty = currentQty + 1;
+                  const stockQty = product.conversionFactor 
+                    ? nextQty / product.conversionFactor 
+                    : nextQty;
+                  return (stockLevels[product.id] || 0) < stockQty;
+                })()}
               >
                 +
               </button>
@@ -258,9 +356,38 @@ export default function NewSale({ user }) {
       {/* Cart Summary */}
       {Object.keys(cart).length > 0 && (
         <div class="card mb-lg" style="position: sticky; bottom: 0; z-index: 50;">
-          <div class="flex justify-between items-center mb-md">
-            <span class="font-bold">Total</span>
-            <span class="font-bold text-lg">{formatCurrency(getTotal())}</span>
+          <h3 class="mb-md">Cart Summary</h3>
+          {Object.entries(cart).map(([productId, qty]) => {
+            const product = products.find(p => p.id === productId);
+            if (!product) return null;
+            const customPrice = customPrices[productId];
+            const customQty = customQuantities[productId];
+            const actualPrice = customPrice || product.sellPrice;
+            const actualQty = customQty || qty;
+            const lineTotal = actualPrice * actualQty;
+            return (
+              <div key={productId} class="flex justify-between items-center mb-sm">
+                <div>
+                  <span class="font-bold">{product.name}</span>
+                  <span class="text-sm text-gray"> x{actualQty} {product.saleUnit || product.unit}</span>
+                  {(customPrice || customQty) && (
+                    <span class="badge badge-yellow ml-sm">Custom</span>
+                  )}
+                </div>
+                <div class="text-right">
+                  <div class="text-sm">
+                    {formatCurrency(actualPrice)} / {product.saleUnit || product.unit}
+                  </div>
+                  <div class="font-bold">{formatCurrency(lineTotal)}</div>
+                </div>
+              </div>
+            );
+          })}
+          <div class="border-t pt-md mt-md">
+            <div class="flex justify-between items-center mb-md">
+              <span class="font-bold">Total</span>
+              <span class="font-bold text-lg">{formatCurrency(getTotal())}</span>
+            </div>
           </div>
 
           {/* Payment Method */}

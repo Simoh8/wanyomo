@@ -1,5 +1,5 @@
 import { signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase.js';
 
 const googleProvider = new GoogleAuthProvider();
@@ -61,10 +61,11 @@ export async function signIn() {
     const userDoc = await getDoc(doc(db, 'users', user.email));
     
     if (!userDoc.exists()) {
-      // First sign-in - check if this is the owner
-      const ownerEmail = import.meta.env.VITE_OWNER_EMAIL;
-      if (user.email === ownerEmail) {
-        // Create owner user
+      // First sign-in - check if this is the first user ever (super admin)
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      
+      if (usersSnapshot.empty) {
+        // First user becomes super admin/owner
         await setDoc(doc(db, 'users', user.email), {
           email: user.email,
           name: user.displayName,

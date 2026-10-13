@@ -263,7 +263,14 @@ export default function Stock({ user }) {
                 <div class="flex justify-between items-center">
                   <div>
                     <div class="font-bold">{product.name}</div>
-                    <div class="text-sm text-gray">{product.unit}</div>
+                    <div class="text-sm text-gray">
+                      {product.unit}
+                      {product.saleUnit && product.saleUnit !== product.unit && (
+                        <span class="text-xs text-gray ml-sm">
+                          (Sells as: {product.saleUnit})
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div class="text-right">
                     <div class="font-bold">{stock} {product.unit}</div>
@@ -461,14 +468,17 @@ export default function Stock({ user }) {
             const countedQty = stocktakeCounts[product.id] !== undefined ? stocktakeCounts[product.id] : systemQty;
             const variance = countedQty - systemQty;
             
+            // Display in stock unit
+            const displayUnit = product.unit;
+            
             return (
               <div key={product.id} class="mb-md" style="padding: var(--space-md); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);">
                 <div class="flex justify-between items-center mb-sm">
                   <span class="font-bold">{product.name}</span>
-                  <span class="text-sm text-gray">System: {systemQty}</span>
+                  <span class="text-sm text-gray">System: {systemQty} {displayUnit}</span>
                 </div>
                 <div class="mb-sm">
-                  <label>Counted Quantity</label>
+                  <label>Counted Quantity ({displayUnit})</label>
                   <input
                     type="number"
                     value={countedQty}
@@ -480,7 +490,7 @@ export default function Stock({ user }) {
                 </div>
                 {variance !== 0 && (
                   <div class={`text-sm ${variance > 0 ? 'text-green' : 'text-red'}`}>
-                    Variance: {variance > 0 ? '+' : ''}{variance}
+                    Variance: {variance > 0 ? '+' : ''}{variance} {displayUnit}
                   </div>
                 )}
               </div>

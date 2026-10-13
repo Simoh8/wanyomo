@@ -16,6 +16,8 @@ export default function Settings({ user, onSignOut }) {
   const [productName, setProductName] = useState('');
   const [productCategory, setProductCategory] = useState('');
   const [productUnit, setProductUnit] = useState('');
+  const [productSaleUnit, setProductSaleUnit] = useState('');
+  const [productConversionFactor, setProductConversionFactor] = useState('');
   const [productSellPrice, setProductSellPrice] = useState('');
   const [productCostPrice, setProductCostPrice] = useState('');
   const [productReorderLevel, setProductReorderLevel] = useState('');
@@ -70,6 +72,8 @@ export default function Settings({ user, onSignOut }) {
         name: productName,
         category: productCategory,
         unit: productUnit,
+        saleUnit: productSaleUnit || productUnit,
+        conversionFactor: productConversionFactor ? parseFloat(productConversionFactor) : 1,
         sellPrice: parseInt(productSellPrice),
         costPrice: productCostPrice ? parseInt(productCostPrice) : undefined,
         reorderLevel: productReorderLevel ? parseInt(productReorderLevel) : 10,
@@ -81,6 +85,8 @@ export default function Settings({ user, onSignOut }) {
       setProductName('');
       setProductCategory('');
       setProductUnit('');
+      setProductSaleUnit('');
+      setProductConversionFactor('');
       setProductSellPrice('');
       setProductCostPrice('');
       setProductReorderLevel('');
@@ -107,6 +113,8 @@ export default function Settings({ user, onSignOut }) {
         name: productName,
         category: productCategory,
         unit: productUnit,
+        saleUnit: productSaleUnit || productUnit,
+        conversionFactor: productConversionFactor ? parseFloat(productConversionFactor) : 1,
         sellPrice: parseInt(productSellPrice),
         costPrice: productCostPrice ? parseInt(productCostPrice) : undefined,
         reorderLevel: productReorderLevel ? parseInt(productReorderLevel) : 10,
@@ -117,6 +125,8 @@ export default function Settings({ user, onSignOut }) {
       setProductName('');
       setProductCategory('');
       setProductUnit('');
+      setProductSaleUnit('');
+      setProductConversionFactor('');
       setProductSellPrice('');
       setProductCostPrice('');
       setProductReorderLevel('');
@@ -134,6 +144,8 @@ export default function Settings({ user, onSignOut }) {
     setProductName(product.name);
     setProductCategory(product.category);
     setProductUnit(product.unit);
+    setProductSaleUnit(product.saleUnit || product.unit);
+    setProductConversionFactor(product.conversionFactor?.toString() || '');
     setProductSellPrice(product.sellPrice.toString());
     setProductCostPrice('');
     setProductReorderLevel(product.reorderLevel?.toString() || '');
@@ -273,13 +285,40 @@ export default function Settings({ user, onSignOut }) {
             </div>
 
             <div class="mb-md">
-              <label>Unit</label>
+              <label>Stock Unit</label>
               <input
                 type="text"
                 value={productUnit}
                 onInput={(e) => setProductUnit(e.target.value)}
-                placeholder="e.g., litre"
+                placeholder="e.g., tray"
               />
+            </div>
+
+            <div class="mb-md">
+              <label>Sale Unit (optional)</label>
+              <input
+                type="text"
+                value={productSaleUnit}
+                onInput={(e) => setProductSaleUnit(e.target.value)}
+                placeholder="e.g., egg (leave blank to use stock unit)"
+              />
+            </div>
+
+            <div class="mb-md">
+              <label>Conversion Factor (sale units per stock unit)</label>
+              <input
+                type="number"
+                value={productConversionFactor}
+                onInput={(e) => setProductConversionFactor(e.target.value)}
+                placeholder="e.g., 30 (1 tray = 30 eggs)"
+                step="0.01"
+                min="0.01"
+              />
+              <p class="text-sm text-gray mt-sm">
+                {productConversionFactor && productSaleUnit 
+                  ? `1 ${productUnit} = ${productConversionFactor} ${productSaleUnit}`
+                  : 'Leave blank if selling in the same unit as stock'}
+              </p>
             </div>
 
             <div class="mb-md">
@@ -324,6 +363,8 @@ export default function Settings({ user, onSignOut }) {
                     setProductName('');
                     setProductCategory('');
                     setProductUnit('');
+                    setProductSaleUnit('');
+                    setProductConversionFactor('');
                     setProductSellPrice('');
                     setProductCostPrice('');
                     setProductReorderLevel('');
@@ -353,7 +394,12 @@ export default function Settings({ user, onSignOut }) {
                   <div>
                     <div class="font-bold">{product.name}</div>
                     <div class="text-sm text-gray">
-                      {formatCurrency(product.sellPrice)} / {product.unit}
+                      {formatCurrency(product.sellPrice)} / {product.saleUnit || product.unit}
+                      {product.saleUnit && product.saleUnit !== product.unit && (
+                        <span class="text-xs text-gray ml-sm">
+                          (1 {product.unit} = {product.conversionFactor || 1} {product.saleUnit})
+                        </span>
+                      )}
                     </div>
                   </div>
                   <button

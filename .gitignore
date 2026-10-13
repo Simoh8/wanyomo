@@ -1,3 +1,16 @@
+# Environment variables (contains API keys and secrets)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.test
+
+# Firebase service account files (contains private keys)
+firebase-service-account.json
+firebase-adminsdk.json
+service-account.json
+
 # Logs
 logs
 *.log
@@ -7,10 +20,24 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+.pnp
+.pnp.js
+
+# Build outputs
 dist
 dist-ssr
+build
+out
 *.local
+
+# Cache
+.cache
+.parcel-cache
+.vite
+.eslintcache
+.stylelintcache
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +49,25 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.history/
+
+# OS files
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+*.temp
+
+# Coverage
+coverage
+.nyc_output
+
+# Misc
+*.pid
+*.seed
+*.pid.lock
+.lock-wscript

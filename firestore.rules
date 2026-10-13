@@ -144,10 +144,11 @@ service cloud.firestore {
       allow write: if isAuthenticated() && isManager();
     }
     
-    // Audit log - Owner only
+    // Audit log - Owner only (admin cannot delete system logs)
     match /auditLog/{logId} {
       allow read: if isAuthenticated() && isOwner();
       allow create: if isAuthenticated() && isOwner();
+      allow delete: if false;
     }
     
     // Settings - Owner only
