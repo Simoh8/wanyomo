@@ -371,7 +371,7 @@ export default function NewSale({ user }) {
 
       {/* Cart Summary */}
       {Object.keys(cart).length > 0 && (
-        <div class="card mb-lg" style="position: sticky; bottom: 0; z-index: 50;">
+        <div class="card mb-lg cart-summary">
           <h3 class="mb-md">Cart Summary</h3>
 
           {/* Delivery Fee */}
@@ -730,6 +730,106 @@ Thank you for your business! 🙏
           </div>
         </div>
       )}
+
+      <style>{`
+        .new-sale {
+          padding-bottom: 200px;
+        }
+
+        .cart-summary {
+          position: sticky;
+          bottom: 0;
+          z-index: 50;
+          margin-top: var(--space-lg);
+        }
+
+        @media (max-width: 768px) {
+          .new-sale {
+            padding-bottom: 280px;
+          }
+
+          .cart-summary {
+            bottom: 0;
+            max-height: 50vh;
+            overflow-y: auto;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
+          }
+
+          .cart-summary h3 {
+            position: sticky;
+            top: 0;
+            background-color: var(--color-cream);
+            padding: var(--space-md) 0;
+            border-bottom: 1px solid var(--color-gray-200);
+            margin-bottom: var(--space-md);
+            z-index: 10;
+          }
+
+          .cart-summary .flex.justify-between.items-center.mb-sm {
+            flex-wrap: wrap;
+            gap: var(--space-xs);
+          }
+
+          .cart-summary .text-right {
+            text-align: right;
+            min-width: 80px;
+          }
+
+          .cart-summary .text-sm {
+            font-size: var(--font-size-xs);
+            line-height: 1.3;
+          }
+
+          .cart-summary .badge {
+            font-size: 0.65rem;
+            padding: 2px 6px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .new-sale {
+            padding-bottom: 320px;
+          }
+
+          .cart-summary {
+            max-height: 45vh;
+          }
+
+          .cart-summary .btn {
+            font-size: var(--font-size-sm);
+            padding: var(--space-sm) var(--space-md);
+          }
+
+          .new-sale .card {
+            overflow: hidden;
+          }
+
+          .new-sale .card .text-sm {
+            font-size: var(--font-size-xs);
+            line-height: 1.4;
+            word-break: break-word;
+          }
+
+          .new-sale .card .flex.justify-between.items-center {
+            flex-wrap: wrap;
+            gap: var(--space-xs);
+          }
+
+          .new-sale .card .font-bold {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+
+          .new-sale .card .badge {
+            flex-shrink: 0;
+            font-size: 0.65rem;
+            padding: 2px 6px;
+          }
+        }
+      `}</style>
     </div>
   );
 }

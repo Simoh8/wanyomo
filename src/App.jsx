@@ -338,16 +338,16 @@ export default function App() {
             position: fixed;
             bottom: auto;
             top: 60px;
-            left: 0;
+            right: 0;
             width: 280px;
             flex-direction: column;
             padding: var(--space-md);
             max-height: calc(100vh - 60px);
             overflow-y: auto;
-            transform: translateX(-100%);
+            transform: translateX(100%);
             opacity: 0;
             pointer-events: none;
-            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
           }
 
           .nav.nav-open {
