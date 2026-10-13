@@ -34,6 +34,21 @@ export default function Settings({ user, onSignOut }) {
   const [appIconUrl, setAppIconUrl] = useState('');
   const [uploadingIcon, setUploadingIcon] = useState(false);
 
+  // Business details state
+  const [businessName, setBusinessName] = useState('');
+  const [businessAddress, setBusinessAddress] = useState('');
+  const [businessPhone, setBusinessPhone] = useState('');
+  const [businessEmail, setBusinessEmail] = useState('');
+  const [taxId, setTaxId] = useState('');
+  const [savingBusiness, setSavingBusiness] = useState(false);
+
+  // Email settings state
+  const [emailFrom, setEmailFrom] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
+
   useEffect(() => {
     loadSettingsData();
   }, []);
@@ -58,6 +73,25 @@ export default function Settings({ user, onSignOut }) {
       const iconUrl = await getSetting('appIcon');
       setAppIconUrl(iconUrl || '/favicon.svg');
       updateFavicon(iconUrl || '/favicon.svg');
+
+      // Load business details
+      const businessDetails = await getSetting('businessDetails');
+      if (businessDetails) {
+        setBusinessName(businessDetails.name || '');
+        setBusinessAddress(businessDetails.address || '');
+        setBusinessPhone(businessDetails.phone || '');
+        setBusinessEmail(businessDetails.email || '');
+        setTaxId(businessDetails.taxId || '');
+      }
+
+      // Load email settings
+      const emailSettings = await getSetting('emailSettings');
+      if (emailSettings) {
+        setEmailFrom(emailSettings.from || '');
+        setEmailPassword(emailSettings.password || '');
+        setSmtpHost(emailSettings.smtpHost || '');
+        setSmtpPort(emailSettings.smtpPort || '');
+      }
     } catch (error) {
       console.error('Error loading settings:', error);
     } finally {
@@ -272,6 +306,56 @@ export default function Settings({ user, onSignOut }) {
     }
   };
 
+  const handleSaveBusinessDetails = async () => {
+    if (savingBusiness) return;
+
+    setSavingBusiness(true);
+
+    try {
+      await setSetting('businessDetails', {
+        name: businessName,
+        address: businessAddress,
+        phone: businessPhone,
+        email: businessEmail,
+        taxId: taxId,
+      });
+
+      showToast('Business details saved successfully', 'success');
+    } catch (error) {
+      console.error('Error saving business details:', error);
+      showToast('Error saving business details: ' + error.message, 'error');
+    } finally {
+      setSavingBusiness(false);
+    }
+  };
+
+  const handleSaveEmailSettings = async () => {
+    if (savingEmail) return;
+
+    if (!emailFrom || !emailPassword || !smtpHost || !smtpPort) {
+      showToast('Please fill in all email settings fields', 'error');
+      return;
+    }
+
+    setSavingEmail(true);
+
+    try {
+      await setSetting('emailSettings', {
+        from: emailFrom,
+        password: emailPassword,
+        smtpHost: smtpHost,
+        smtpPort: smtpPort,
+      });
+
+      showToast('Email settings saved successfully', 'success');
+    } catch (error) {
+      console.error('Error saving email settings:', error);
+      showToast('Error saving email settings: ' + error.message, 'error');
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
   if (loading) {
     return (
       <div class="flex items-center justify-center" style="min-height: 200px;">
@@ -291,6 +375,20 @@ export default function Settings({ user, onSignOut }) {
           onClick={() => setActiveTab('general')}
         >
           General
+        </button>
+
+        <button
+          class={`btn ${activeTab === 'business' ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => setActiveTab('business')}
+        >
+          Business
+        </button>
+
+        <button
+          class={`btn ${activeTab === 'email' ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => setActiveTab('email')}
+        >
+          Email
         </button>
         
         {user.role === ROLES.OWNER && (
@@ -363,6 +461,125 @@ export default function Settings({ user, onSignOut }) {
             <span>Allow Negative Stock</span>
             <span class="text-gray">Configure in future</span>
           </div>
+        </div>
+      )}
+
+      {/* Business Details Settings */}
+      {activeTab === 'business' && (
+        <div class="card">
+          <h3>Business Details</h3>
+          <p class="text-gray">Configure your business information for invoices</p>
+          <div class="divider"></div>
+
+          <div class="mb-md">
+            <label>Business Name</label>
+            <input
+              type="text"
+              value={businessName}
+              onInput={(e) => setBusinessName(e.target.value)}
+              placeholder="e.g., Wanyomo Enterprises"
+            />
+          </div>
+
+          <div class="mb-md">
+            <label>Business Address</label>
+            <input
+              type="text"
+              value={businessAddress}
+              onInput={(e) => setBusinessAddress(e.target.value)}
+              placeholder="e.g., 123 Main Street, Nairobi"
+            />
+          </div>
+
+          <div class="mb-md">
+            <label>Business Phone</label>
+            <input
+              type="text"
+              value={businessPhone}
+              onInput={(e) => setBusinessPhone(e.target.value)}
+              placeholder="e.g., +254 700 000 000"
+            />
+          </div>
+
+          <div class="mb-md">
+            <label>Business Email</label>
+            <input
+              type="email"
+              value={businessEmail}
+              onInput={(e) => setBusinessEmail(e.target.value)}
+              placeholder="e.g., info@wanyomo.com"
+            />
+          </div>
+
+          <div class="mb-md">
+            <label>Tax ID / KRA PIN (Optional)</label>
+            <input
+              type="text"
+              value={taxId}
+              onInput={(e) => setTaxId(e.target.value)}
+              placeholder="e.g., A00 000000 000L"
+            />
+          </div>
+
+          <button class="btn btn-primary btn-block" onClick={handleSaveBusinessDetails} disabled={savingBusiness}>
+            {savingBusiness ? 'Saving...' : 'Save Business Details'}
+          </button>
+        </div>
+      )}
+
+      {/* Email Settings */}
+      {activeTab === 'email' && (
+        <div class="card">
+          <h3>Email Settings</h3>
+          <p class="text-gray">Configure email settings for sending invoices</p>
+          <div class="divider"></div>
+
+          <div class="mb-md">
+            <label>From Email Address</label>
+            <input
+              type="email"
+              value={emailFrom}
+              onInput={(e) => setEmailFrom(e.target.value)}
+              placeholder="e.g., noreply@wanyomo.com"
+            />
+          </div>
+
+          <div class="mb-md">
+            <label>Email Password / App Password</label>
+            <input
+              type="password"
+              value={emailPassword}
+              onInput={(e) => setEmailPassword(e.target.value)}
+              placeholder="Enter your email password or app password"
+            />
+            <p class="text-sm text-gray mt-sm">
+              For Gmail, use an App Password from Google Account settings
+            </p>
+          </div>
+
+          <div class="mb-md">
+            <label>SMTP Host</label>
+            <input
+              type="text"
+              value={smtpHost}
+              onInput={(e) => setSmtpHost(e.target.value)}
+              placeholder="e.g., smtp.gmail.com"
+            />
+          </div>
+
+          <div class="mb-md">
+            <label>SMTP Port</label>
+            <input
+              type="text"
+              value={smtpPort}
+              onInput={(e) => setSmtpPort(e.target.value)}
+              placeholder="e.g., 587"
+            />
+          </div>
+
+          <button class="btn btn-primary btn-block" onClick={handleSaveEmailSettings} disabled={savingEmail}>
+            {savingEmail ? 'Saving...' : 'Save Email Settings'}
+          </button>
         </div>
       )}
 
