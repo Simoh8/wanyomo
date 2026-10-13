@@ -284,7 +284,7 @@ export default function App() {
           border: none;
           color: white;
           cursor: pointer;
-          padding: var(--space-sm);
+          padding: 8px;
           transition: transform var(--transition-base);
         }
 
@@ -320,15 +320,16 @@ export default function App() {
             position: fixed;
             bottom: auto;
             top: 60px;
-            left: 0;
             right: 0;
+            width: 280px;
             flex-direction: column;
             padding: var(--space-md);
             max-height: calc(100vh - 60px);
             overflow-y: auto;
-            transform: translateY(-100%);
+            transform: translateX(100%);
             opacity: 0;
             pointer-events: none;
+            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
           }
 
           .nav.nav-open {

@@ -100,7 +100,7 @@ export default function NewSale({ user }) {
         total += price * actualQty;
       }
     }
-    return total;
+    return total + (deliveryFee || 0);
   };
 
   const canCompleteSale = () => {
@@ -196,11 +196,22 @@ export default function NewSale({ user }) {
         customerId: selectedCustomer?.id || null,
         items,
         amount: total,
+        deliveryFee: deliveryFee || 0,
         paymentSplit: paymentSplitData,
         createdBy: user.email,
       };
 
       await createTransaction(transactionData, stockMovements);
+
+      // Store sale data for invoice
+      setLastSaleData({
+        transactionData,
+        items,
+        customer: selectedCustomer,
+        total,
+        deliveryFee: deliveryFee || 0,
+        date: new Date(),
+      });
 
       // Reset cart
       setCart({});
@@ -209,6 +220,8 @@ export default function NewSale({ user }) {
       setSelectedCustomer(null);
       setPaymentMethod(PAYMENT_METHODS.CASH);
       setPaymentSplit([]);
+      setDeliveryFee(0);
+      setShowInvoice(true);
       showToast('Sale completed successfully!', 'success');
     } catch (error) {
       console.error('Sale error:', error);
@@ -360,6 +373,19 @@ export default function NewSale({ user }) {
       {Object.keys(cart).length > 0 && (
         <div class="card mb-lg" style="position: sticky; bottom: 0; z-index: 50;">
           <h3 class="mb-md">Cart Summary</h3>
+
+          {/* Delivery Fee */}
+          <div class="mb-md">
+            <label>Delivery Fee (optional)</label>
+            <input
+              type="number"
+              value={deliveryFee || ''}
+              onChange={(e) => setDeliveryFee(parseFloat(e.target.value) || 0)}
+              placeholder="0.00"
+              step="0.01"
+              min="0"
+            />
+          </div>
           {Object.entries(cart).map(([productId, qty]) => {
             const product = products.find(p => p.id === productId);
             if (!product) return null;
@@ -387,6 +413,16 @@ export default function NewSale({ user }) {
             );
           })}
           <div class="border-t pt-md mt-md">
+            <div class="flex justify-between items-center mb-sm">
+              <span>Subtotal</span>
+              <span>{formatCurrency(getTotal() - (deliveryFee || 0))}</span>
+            </div>
+            {deliveryFee > 0 && (
+              <div class="flex justify-between items-center mb-sm">
+                <span>Delivery Fee</span>
+                <span>{formatCurrency(deliveryFee)}</span>
+              </div>
+            )}
             <div class="flex justify-between items-center mb-md">
               <span class="font-bold">Total</span>
               <span class="font-bold text-lg">{formatCurrency(getTotal())}</span>
@@ -419,6 +455,279 @@ export default function NewSale({ user }) {
           >
             {processingSale ? 'Processing...' : 'Complete Sale'}
           </button>
+        </div>
+      )}
+
+      {/* Invoice Modal */}
+      {showInvoice && lastSaleData && (
+        <div class="invoice-modal" style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: 'var(--space-md)',
+        }}>
+          <div class="invoice-content card" style={{
+            maxWidth: '800px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            padding: 'var(--space-lg)',
+          }}>
+            <div id="invoice-print" style={{
+              padding: 'var(--space-lg)',
+              backgroundColor: 'white',
+              color: 'black',
+            }}>
+              {/* Invoice Header */}
+              <div style={{
+                textAlign: 'center',
+                marginBottom: 'var(--space-lg)',
+                borderBottom: '2px solid var(--color-green)',
+                paddingBottom: 'var(--space-md)',
+              }}>
+                <h1 style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)', color: 'var(--color-green)' }}>
+                  INVOICE
+                </h1>
+                <h2 style={{ fontSize: '1.5rem', marginBottom: 'var(--space-sm)' }}>
+                  Shamba Books
+                </h2>
+                <p style={{ fontSize: '0.875rem', color: '#666' }}>
+                  Your Trusted Farm Management System
+                </p>
+              </div>
+
+              {/* Invoice Details */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 'var(--space-lg)',
+                marginBottom: 'var(--space-lg)',
+              }}>
+                <div>
+                  <h3 style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)', borderBottom: '1px solid #ddd', paddingBottom: 'var(--space-xs)' }}>
+                    Bill To:
+                  </h3>
+                  {lastSaleData.customer ? (
+                    <>
+                      <p style={{ fontWeight: '600', marginBottom: 'var(--space-xs)' }}>
+                        {lastSaleData.customer.name}
+                      </p>
+                      {lastSaleData.customer.phone && (
+                        <p style={{ fontSize: '0.875rem', marginBottom: 'var(--space-xs)' }}>
+                          Phone: {lastSaleData.customer.phone}
+                        </p>
+                      )}
+                      {lastSaleData.customer.email && (
+                        <p style={{ fontSize: '0.875rem', marginBottom: 'var(--space-xs)' }}>
+                          Email: {lastSaleData.customer.email}
+                        </p>
+                      )}
+                      {lastSaleData.customer.address && (
+                        <p style={{ fontSize: '0.875rem' }}>
+                          Address: {lastSaleData.customer.address}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p style={{ fontSize: '0.875rem' }}>Walk-in Customer</p>
+                  )}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <h3 style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)', borderBottom: '1px solid #ddd', paddingBottom: 'var(--space-xs)' }}>
+                    Invoice Details:
+                  </h3>
+                  <p style={{ fontSize: '0.875rem', marginBottom: 'var(--space-xs)' }}>
+                    <strong>Invoice #:</strong> {lastSaleData.transactionData.date.replace(/[:.]/g, '-').slice(0, -5)}
+                  </p>
+                  <p style={{ fontSize: '0.875rem', marginBottom: 'var(--space-xs)' }}>
+                    <strong>Date:</strong> {lastSaleData.date.toLocaleDateString()}
+                  </p>
+                  <p style={{ fontSize: '0.875rem', marginBottom: 'var(--space-xs)' }}>
+                    <strong>Time:</strong> {lastSaleData.date.toLocaleTimeString()}
+                  </p>
+                  <p style={{ fontSize: '0.875rem' }}>
+                    <strong>Served By:</strong> {user.displayName || user.email}
+                  </p>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                marginBottom: 'var(--space-lg)',
+              }}>
+                <thead>
+                  <tr style={{ backgroundColor: 'var(--color-green)', color: 'white' }}>
+                    <th style={{ padding: 'var(--space-sm)', textAlign: 'left', border: '1px solid #ddd' }}>Item</th>
+                    <th style={{ padding: 'var(--space-sm)', textAlign: 'center', border: '1px solid #ddd' }}>Qty</th>
+                    <th style={{ padding: 'var(--space-sm)', textAlign: 'right', border: '1px solid #ddd' }}>Unit Price</th>
+                    <th style={{ padding: 'var(--space-sm)', textAlign: 'right', border: '1px solid #ddd' }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lastSaleData.items.map((item, index) => (
+                    <tr key={index}>
+                      <td style={{ padding: 'var(--space-sm)', border: '1px solid #ddd' }}>
+                        {item.name}
+                      </td>
+                      <td style={{ padding: 'var(--space-sm)', textAlign: 'center', border: '1px solid #ddd' }}>
+                        {item.qty} {item.unit}
+                      </td>
+                      <td style={{ padding: 'var(--space-sm)', textAlign: 'right', border: '1px solid #ddd' }}>
+                        {formatCurrency(item.unitPrice)}
+                      </td>
+                      <td style={{ padding: 'var(--space-sm)', textAlign: 'right', border: '1px solid #ddd' }}>
+                        {formatCurrency(item.lineTotal)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Totals */}
+              <div style={{ marginLeft: 'auto', maxWidth: '300px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-sm)', padding: 'var(--space-sm)', backgroundColor: '#f5f5f5' }}>
+                  <span>Subtotal:</span>
+                  <span>{formatCurrency(lastSaleData.total - lastSaleData.deliveryFee)}</span>
+                </div>
+                {lastSaleData.deliveryFee > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-sm)', padding: 'var(--space-sm)', backgroundColor: '#f5f5f5' }}>
+                    <span>Delivery Fee:</span>
+                    <span>{formatCurrency(lastSaleData.deliveryFee)}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: 'var(--space-md)', backgroundColor: 'var(--color-green)', color: 'white', fontWeight: 'bold', fontSize: '1.25rem' }}>
+                  <span>Total:</span>
+                  <span>{formatCurrency(lastSaleData.total)}</span>
+                </div>
+              </div>
+
+              {/* Payment Info */}
+              <div style={{ marginTop: 'var(--space-lg)', paddingTop: 'var(--space-md)', borderTop: '2px solid #ddd' }}>
+                <h3 style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)' }}>Payment Method:</h3>
+                <p style={{ fontSize: '0.875rem' }}>
+                  {lastSaleData.transactionData.paymentSplit.map(p => `${p.method}: ${formatCurrency(p.amount)}`).join(', ')}
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div style={{ marginTop: 'var(--space-lg)', paddingTop: 'var(--space-md)', borderTop: '1px solid #ddd', textAlign: 'center', fontSize: '0.75rem', color: '#666' }}>
+                <p>Thank you for your business!</p>
+                <p>For inquiries, contact us at support@shambabooks.com</p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{
+              display: 'flex',
+              gap: 'var(--space-md)',
+              marginTop: 'var(--space-lg)',
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+            }}>
+              <button
+                class="btn btn-primary"
+                onClick={() => {
+                  const printContent = document.getElementById('invoice-print').innerHTML;
+                  const printWindow = window.open('', '_blank');
+                  printWindow.document.write(`
+                    <html>
+                      <head>
+                        <title>Invoice</title>
+                        <style>
+                          body { font-family: Arial, sans-serif; padding: 20px; }
+                          table { width: 100%; border-collapse: collapse; }
+                          th, td { border: 1px solid #ddd; padding: 8px; }
+                          th { background-color: #2d5a27; color: white; }
+                        </style>
+                      </head>
+                      <body>${printContent}</body>
+                    </html>
+                  `);
+                  printWindow.document.close();
+                  printWindow.print();
+                }}
+              >
+                🖨️ Print Invoice
+              </button>
+              <button
+                class="btn btn-secondary"
+                onClick={() => {
+                  const subject = `Invoice from Shamba Books - ${lastSaleData.date.toLocaleDateString()}`;
+                  const body = `
+Dear ${lastSaleData.customer?.name || 'Customer'},
+
+Thank you for your purchase!
+
+Invoice Details:
+- Date: ${lastSaleData.date.toLocaleDateString()}
+- Invoice #: ${lastSaleData.transactionData.date.replace(/[:.]/g, '-').slice(0, -5)}
+- Total: ${formatCurrency(lastSaleData.total)}
+
+Items:
+${lastSaleData.items.map(item => `- ${item.name} x${item.qty} ${item.unit}: ${formatCurrency(item.lineTotal)}`).join('\n')}
+
+${lastSaleData.deliveryFee > 0 ? `Delivery Fee: ${formatCurrency(lastSaleData.deliveryFee)}\n` : ''}
+Payment Method: ${lastSaleData.transactionData.paymentSplit.map(p => p.method).join(', ')}
+
+Thank you for your business!
+                  `.trim();
+                  window.location.href = `mailto:${lastSaleData.customer?.email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                }}
+                disabled={!lastSaleData.customer?.email}
+              >
+                📧 Send Email
+              </button>
+              <button
+                class="btn btn-outline"
+                onClick={() => {
+                  const message = `
+*INVOICE - Shamba Books*
+━━━━━━━━━━━━━━━━━━━━
+
+📅 Date: ${lastSaleData.date.toLocaleDateString()}
+🔢 Invoice #: ${lastSaleData.transactionData.date.replace(/[:.]/g, '-').slice(0, -5)}
+
+👤 Customer: ${lastSaleData.customer?.name || 'Walk-in'}
+
+📦 Items:
+${lastSaleData.items.map(item => `• ${item.name} x${item.qty} ${item.unit} = ${formatCurrency(item.lineTotal)}`).join('\n')}
+
+${lastSaleData.deliveryFee > 0 ? `🚚 Delivery Fee: ${formatCurrency(lastSaleData.deliveryFee)}\n` : ''}
+━━━━━━━━━━━━━━━━━━━━
+💰 *TOTAL: ${formatCurrency(lastSaleData.total)}*
+
+💳 Payment: ${lastSaleData.transactionData.paymentSplit.map(p => p.method).join(', ')}
+
+Thank you for your business! 🙏
+                  `.trim();
+                  const phone = lastSaleData.customer?.phone?.replace(/[^0-9]/g, '');
+                  if (phone) {
+                    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+                  } else {
+                    showToast('Customer phone number not available', 'error');
+                  }
+                }}
+                disabled={!lastSaleData.customer?.phone}
+              >
+                📱 Send WhatsApp
+              </button>
+              <button
+                class="btn btn-ghost"
+                onClick={() => setShowInvoice(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

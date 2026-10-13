@@ -248,7 +248,25 @@ export default function Settings({ user, onSignOut }) {
       showToast('Icon updated successfully', 'success');
     } catch (error) {
       console.error('Error uploading icon:', error);
-      showToast('Error uploading icon: ' + error.message, 'error');
+      if (error.code === 'storage/unauthorized' || error.message.includes('CORS')) {
+        showToast('CORS error: Firebase Storage needs configuration. See console for details.', 'error');
+        console.error(
+          'CORS Configuration Required:\n' +
+          'To fix this, you need to configure CORS for your Firebase Storage bucket:\n' +
+          '1. Install gsutil: https://cloud.google.com/storage/docs/gsutil_install\n' +
+          '2. Run: gsutil cors set cors.json gs://wanyomo-eaab7.firebasestorage.app\n' +
+          '3. Create cors.json file with:\n' +
+          '[\n' +
+          '  {\n' +
+          '    "origin": ["*"],\n' +
+          '    "method": ["GET", "POST"],\n' +
+          '    "maxAgeSeconds": 3600\n' +
+          '  }\n' +
+          ']'
+        );
+      } else {
+        showToast('Error uploading icon: ' + error.message, 'error');
+      }
     } finally {
       setUploadingIcon(false);
     }
