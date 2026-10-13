@@ -16,6 +16,11 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentScreen, setCurrentScreen] = useState('dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = localStorage.getItem('theme');
+    return savedTheme || 'light';
+  });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChange((authUser) => {
@@ -25,6 +30,15 @@ export default function App() {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
 
   const handleSignOut = async () => {
     await authSignOut();
@@ -72,8 +86,51 @@ export default function App() {
         <div class="container flex items-center justify-between" style="padding: var(--space-md);">
           <h1 style="font-size: var(--font-size-xl); margin: 0;">Shamba Books</h1>
           <div class="flex items-center gap-sm">
+            <button
+              class="theme-toggle"
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+            >
+              {theme === 'light' ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="5"></circle>
+                  <line x1="12" y1="1" x2="12" y2="3"></line>
+                  <line x1="12" y1="21" x2="12" y2="23"></line>
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                  <line x1="1" y1="12" x2="3" y2="12"></line>
+                  <line x1="21" y1="12" x2="23" y2="12"></line>
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+              )}
+            </button>
             <div class="avatar avatar-sm">{user.displayName?.[0] || '?'}</div>
-            <span class="text-sm text-gray">{user.displayName}</span>
+            <span class="text-sm text-gray" style="display: none;">{user.displayName}</span>
+            <button
+              class="burger-menu"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                {isMobileMenuOpen ? (
+                  <>
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </>
+                ) : (
+                  <>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                  </>
+                )}
+              </svg>
+            </button>
           </div>
         </div>
       </header>
@@ -82,7 +139,7 @@ export default function App() {
         {renderScreen()}
       </main>
 
-      <nav class="nav">
+      <nav class={`nav ${isMobileMenuOpen ? 'nav-open' : ''}`}>
         <button
           class={`nav-item ${currentScreen === 'dashboard' ? 'active' : ''}`}
           onClick={() => setCurrentScreen('dashboard')}
@@ -198,6 +255,7 @@ export default function App() {
           position: sticky;
           top: 0;
           z-index: 100;
+          transition: background-color var(--transition-base);
         }
 
         .main {
@@ -217,6 +275,87 @@ export default function App() {
           overflow-x: auto;
           z-index: 100;
           padding: var(--space-sm) 0;
+          transition: transform var(--transition-base), background-color var(--transition-base), border-color var(--transition-base);
+        }
+
+        .burger-menu {
+          display: none;
+          background: none;
+          border: none;
+          color: white;
+          cursor: pointer;
+          padding: var(--space-sm);
+          transition: transform var(--transition-base);
+        }
+
+        .burger-menu:hover {
+          transform: scale(1.1);
+        }
+
+        .theme-toggle {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: none;
+          border: none;
+          color: white;
+          cursor: pointer;
+          padding: var(--space-sm);
+          border-radius: var(--radius-md);
+          transition: background-color var(--transition-base);
+        }
+
+        .theme-toggle:hover {
+          background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        @media (max-width: 768px) {
+          .burger-menu {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .nav {
+            position: fixed;
+            bottom: auto;
+            top: 60px;
+            left: 0;
+            right: 0;
+            flex-direction: column;
+            padding: var(--space-md);
+            max-height: calc(100vh - 60px);
+            overflow-y: auto;
+            transform: translateY(-100%);
+            opacity: 0;
+            pointer-events: none;
+          }
+
+          .nav.nav-open {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+          }
+
+          .nav-item {
+            flex-direction: row;
+            justify-content: flex-start;
+            width: 100%;
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+          }
+
+          .nav-item span {
+            font-size: var(--font-size-base);
+          }
+
+          .nav-item.active::after {
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 4px;
+            height: 60%;
+          }
         }
 
         .nav-item {
@@ -230,16 +369,45 @@ export default function App() {
           border: none;
           color: var(--color-gray-500);
           cursor: pointer;
-          transition: color var(--transition-fast);
+          transition: color var(--transition-base), background-color var(--transition-base);
           min-width: 60px;
+          border-radius: var(--radius-md);
+          position: relative;
+        }
+
+        .nav-item:hover {
+          color: var(--color-green);
+          background-color: rgba(45, 90, 39, 0.1);
         }
 
         .nav-item.active {
           color: var(--color-green);
+          background-color: rgba(45, 90, 39, 0.15);
+        }
+
+        .nav-item.active::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 40%;
+          height: 3px;
+          background-color: var(--color-green);
+          border-radius: var(--radius-full);
         }
 
         .nav-item span {
           font-size: var(--font-size-xs);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        @media (max-width: 480px) {
+          .nav-item span {
+            font-size: 0.65rem;
+          }
         }
 
         @media (min-width: 769px) {
@@ -271,6 +439,27 @@ export default function App() {
             padding: var(--space-md);
             min-width: auto;
             width: 100%;
+            border-radius: var(--radius-md);
+          }
+
+          .nav-item:hover {
+            background-color: rgba(45, 90, 39, 0.1);
+          }
+
+          .nav-item.active {
+            background-color: rgba(45, 90, 39, 0.15);
+          }
+
+          .nav-item.active::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 4px;
+            height: 60%;
+            background-color: var(--color-green);
+            border-radius: var(--radius-full);
           }
 
           .nav-item span {

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'preact/hooks';
 import { collection, query, where, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase.js';
-import { collections, createProduct, updateProduct, createCustomer } from '../db/collections.js';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../lib/firebase.js';
+import { collections, createProduct, updateProduct, createCustomer, getSetting, setSetting } from '../db/collections.js';
 import { ROLES } from '../auth/index.js';
 import { formatCurrency } from '../lib/utils.js';
 import { showToast } from '../components/Toast.jsx';
@@ -29,13 +30,17 @@ export default function Settings({ user, onSignOut }) {
   const [newUserRole, setNewUserRole] = useState(ROLES.ATTENDANT);
   const [invitingUser, setInvitingUser] = useState(false);
 
+  // Icon upload state
+  const [appIconUrl, setAppIconUrl] = useState('');
+  const [uploadingIcon, setUploadingIcon] = useState(false);
+
   useEffect(() => {
     loadSettingsData();
   }, []);
 
   const loadSettingsData = async () => {
     setLoading(true);
-    
+
     try {
       // Load products
       const productsSnapshot = await getDocs(collections.products);
@@ -48,10 +53,22 @@ export default function Settings({ user, onSignOut }) {
         const usersList = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setUsers(usersList);
       }
+
+      // Load app icon
+      const iconUrl = await getSetting('appIcon');
+      setAppIconUrl(iconUrl || '/favicon.svg');
+      updateFavicon(iconUrl || '/favicon.svg');
     } catch (error) {
       console.error('Error loading settings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateFavicon = (url) => {
+    const link = document.querySelector("link[rel~='icon']");
+    if (link) {
+      link.href = url;
     }
   };
 
@@ -199,6 +216,44 @@ export default function Settings({ user, onSignOut }) {
     }
   };
 
+  const handleIconUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.match(/image\/(png|jpeg|jpg|svg\+xml)/)) {
+      showToast('Please upload a PNG, JPG, or SVG image', 'error');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Image must be less than 2MB', 'error');
+      return;
+    }
+
+    setUploadingIcon(true);
+
+    try {
+      // Upload to Firebase Storage
+      const storageRef = ref(storage, `app-icons/${Date.now()}-${file.name}`);
+      await uploadBytes(storageRef, file);
+      const downloadUrl = await getDownloadURL(storageRef);
+
+      // Save to settings
+      await setSetting('appIcon', downloadUrl);
+      setAppIconUrl(downloadUrl);
+      updateFavicon(downloadUrl);
+
+      showToast('Icon updated successfully', 'success');
+    } catch (error) {
+      console.error('Error uploading icon:', error);
+      showToast('Error uploading icon: ' + error.message, 'error');
+    } finally {
+      setUploadingIcon(false);
+    }
+  };
+
   if (loading) {
     return (
       <div class="flex items-center justify-center" style="min-height: 200px;">
@@ -251,6 +306,41 @@ export default function Settings({ user, onSignOut }) {
           <h3>General Settings</h3>
           <p class="text-gray">App settings and preferences</p>
           <div class="divider"></div>
+
+          {/* App Icon Upload */}
+          <div class="mb-lg">
+            <label>App Icon</label>
+            <div class="flex items-center gap-md mb-md">
+              <img
+                src={appIconUrl}
+                alt="App Icon"
+                style="width: 64px; height: 64px; object-fit: contain; border-radius: 8px; border: 1px solid var(--color-gray-300);"
+              />
+              <div>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                  onInput={handleIconUpload}
+                  disabled={uploadingIcon}
+                  style="display: none;"
+                  id="icon-upload"
+                />
+                <label
+                  for="icon-upload"
+                  class={`btn btn-outline ${uploadingIcon ? 'disabled' : ''}`}
+                  style="cursor: pointer;"
+                >
+                  {uploadingIcon ? 'Uploading...' : 'Upload New Icon'}
+                </label>
+                <p class="text-sm text-gray mt-sm">
+                  PNG, JPG, or SVG (max 2MB)
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
           <div class="flex justify-between items-center">
             <span>Allow Negative Stock</span>
             <span class="text-gray">Configure in future</span>

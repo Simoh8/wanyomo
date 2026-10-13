@@ -18,6 +18,9 @@ export default function NewSale({ user }) {
   const [loading, setLoading] = useState(false);
   const [processingSale, setProcessingSale] = useState(false);
   const [stockLevels, setStockLevels] = useState({});
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [lastSaleData, setLastSaleData] = useState(null);
 
   useEffect(() => {
     loadProducts();
