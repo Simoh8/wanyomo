@@ -23,6 +23,24 @@ export default function App() {
   });
 
   useEffect(() => {
+    const handleClickOutside = (event) => {
+      const nav = document.querySelector('.nav');
+      const burger = document.querySelector('.burger-menu');
+      if (nav && !nav.contains(event.target) && burger && !burger.contains(event.target)) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    if (isMobileMenuOpen) {
+      document.addEventListener('click', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [isMobileMenuOpen]);
+
+  useEffect(() => {
     const unsubscribe = onAuthStateChange((authUser) => {
       setUser(authUser);
       setLoading(false);
@@ -320,20 +338,20 @@ export default function App() {
             position: fixed;
             bottom: auto;
             top: 60px;
-            right: 0;
+            left: 0;
             width: 280px;
             flex-direction: column;
             padding: var(--space-md);
             max-height: calc(100vh - 60px);
             overflow-y: auto;
-            transform: translateX(100%);
+            transform: translateX(-100%);
             opacity: 0;
             pointer-events: none;
-            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
           }
 
           .nav.nav-open {
-            transform: translateY(0);
+            transform: translateX(0);
             opacity: 1;
             pointer-events: auto;
           }
