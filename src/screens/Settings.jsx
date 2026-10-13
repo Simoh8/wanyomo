@@ -1,0 +1,454 @@
+import { useState, useEffect } from 'preact/hooks';
+import { collection, query, where, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase.js';
+import { collections, createProduct, updateProduct, createCustomer } from '../db/collections.js';
+import { ROLES } from '../auth/index.js';
+import { formatCurrency } from '../lib/utils.js';
+import { showToast } from '../components/Toast.jsx';
+
+export default function Settings({ user, onSignOut }) {
+  const [activeTab, setActiveTab] = useState('general');
+  const [products, setProducts] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Product form state
+  const [productName, setProductName] = useState('');
+  const [productCategory, setProductCategory] = useState('');
+  const [productUnit, setProductUnit] = useState('');
+  const [productSellPrice, setProductSellPrice] = useState('');
+  const [productCostPrice, setProductCostPrice] = useState('');
+  const [productReorderLevel, setProductReorderLevel] = useState('');
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [savingProduct, setSavingProduct] = useState(false);
+
+  // User form state
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserRole, setNewUserRole] = useState(ROLES.ATTENDANT);
+  const [invitingUser, setInvitingUser] = useState(false);
+
+  useEffect(() => {
+    loadSettingsData();
+  }, []);
+
+  const loadSettingsData = async () => {
+    setLoading(true);
+    
+    try {
+      // Load products
+      const productsSnapshot = await getDocs(collections.products);
+      const productsList = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setProducts(productsList);
+
+      // Load users (only for owner)
+      if (user.role === ROLES.OWNER) {
+        const usersSnapshot = await getDocs(collections.users);
+        const usersList = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setUsers(usersList);
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddProduct = async () => {
+    if (!productName || !productCategory || !productUnit || !productSellPrice) {
+      showToast('Please fill in all required fields', 'error');
+      return;
+    }
+
+    if (savingProduct) {
+      return; // Prevent double submission
+    }
+
+    setSavingProduct(true);
+
+    try {
+      await createProduct({
+        name: productName,
+        category: productCategory,
+        unit: productUnit,
+        sellPrice: parseInt(productSellPrice),
+        costPrice: productCostPrice ? parseInt(productCostPrice) : undefined,
+        reorderLevel: productReorderLevel ? parseInt(productReorderLevel) : 10,
+        perishable: true,
+        shelfLifeDays: 7,
+      });
+
+      showToast('Product added successfully', 'success');
+      setProductName('');
+      setProductCategory('');
+      setProductUnit('');
+      setProductSellPrice('');
+      setProductCostPrice('');
+      setProductReorderLevel('');
+      loadSettingsData();
+    } catch (error) {
+      console.error('Error adding product:', error);
+      showToast('Error adding product: ' + error.message, 'error');
+    } finally {
+      setSavingProduct(false);
+    }
+  };
+
+  const handleUpdateProduct = async () => {
+    if (!editingProduct) return;
+
+    if (savingProduct) {
+      return; // Prevent double submission
+    }
+
+    setSavingProduct(true);
+
+    try {
+      await updateProduct(editingProduct.id, {
+        name: productName,
+        category: productCategory,
+        unit: productUnit,
+        sellPrice: parseInt(productSellPrice),
+        costPrice: productCostPrice ? parseInt(productCostPrice) : undefined,
+        reorderLevel: productReorderLevel ? parseInt(productReorderLevel) : 10,
+      });
+
+      showToast('Product updated successfully', 'success');
+      setEditingProduct(null);
+      setProductName('');
+      setProductCategory('');
+      setProductUnit('');
+      setProductSellPrice('');
+      setProductCostPrice('');
+      setProductReorderLevel('');
+      loadSettingsData();
+    } catch (error) {
+      console.error('Error updating product:', error);
+      showToast('Error updating product: ' + error.message, 'error');
+    } finally {
+      setSavingProduct(false);
+    }
+  };
+
+  const handleEditProduct = (product) => {
+    setEditingProduct(product);
+    setProductName(product.name);
+    setProductCategory(product.category);
+    setProductUnit(product.unit);
+    setProductSellPrice(product.sellPrice.toString());
+    setProductCostPrice('');
+    setProductReorderLevel(product.reorderLevel?.toString() || '');
+  };
+
+  const handleInviteUser = async () => {
+    if (!newUserEmail || !newUserRole) {
+      showToast('Please enter email and select role', 'error');
+      return;
+    }
+
+    if (invitingUser) {
+      return; // Prevent double submission
+    }
+
+    setInvitingUser(true);
+
+    try {
+      await setDoc(doc(collections.users, newUserEmail), {
+        email: newUserEmail,
+        name: newUserEmail.split('@')[0],
+        role: newUserRole,
+        active: true,
+        invitedBy: user.email,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: null,
+      });
+
+      showToast('User invited successfully', 'success');
+      setNewUserEmail('');
+      setNewUserRole(ROLES.ATTENDANT);
+      loadSettingsData();
+    } catch (error) {
+      console.error('Error inviting user:', error);
+      showToast('Error inviting user: ' + error.message, 'error');
+    } finally {
+      setInvitingUser(false);
+    }
+  };
+
+  const handleToggleUserActive = async (userEmail, currentActive) => {
+    try {
+      await updateDoc(doc(collections.users, userEmail), {
+        active: !currentActive,
+      });
+      showToast('User updated successfully', 'success');
+      loadSettingsData();
+    } catch (error) {
+      console.error('Error updating user:', error);
+      showToast('Error updating user: ' + error.message, 'error');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div class="flex items-center justify-center" style="min-height: 200px;">
+        <div class="spinner"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div class="settings">
+      <h2>Settings</h2>
+
+      {/* Tabs */}
+      <div class="flex gap-sm mb-lg" style="overflow-x: auto;">
+        <button
+          class={`btn ${activeTab === 'general' ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => setActiveTab('general')}
+        >
+          General
+        </button>
+        
+        {user.role === ROLES.OWNER && (
+          <>
+            <button
+              class={`btn ${activeTab === 'products' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setActiveTab('products')}
+            >
+              Products
+            </button>
+            <button
+              class={`btn ${activeTab === 'team' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setActiveTab('team')}
+            >
+              Team
+            </button>
+          </>
+        )}
+        
+        <button
+          class={`btn ${activeTab === 'account' ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => setActiveTab('account')}
+        >
+          Account
+        </button>
+      </div>
+
+      {/* General Settings */}
+      {activeTab === 'general' && (
+        <div class="card">
+          <h3>General Settings</h3>
+          <p class="text-gray">App settings and preferences</p>
+          <div class="divider"></div>
+          <div class="flex justify-between items-center">
+            <span>Allow Negative Stock</span>
+            <span class="text-gray">Configure in future</span>
+          </div>
+        </div>
+      )}
+
+      {/* Products Management */}
+      {activeTab === 'products' && user.role === ROLES.OWNER && (
+        <div>
+          <div class="card mb-lg">
+            <h3>{editingProduct ? 'Edit Product' : 'Add Product'}</h3>
+            
+            <div class="mb-md">
+              <label>Product Name</label>
+              <input
+                type="text"
+                value={productName}
+                onInput={(e) => setProductName(e.target.value)}
+                placeholder="e.g., Milk"
+              />
+            </div>
+
+            <div class="mb-md">
+              <label>Category</label>
+              <input
+                type="text"
+                value={productCategory}
+                onInput={(e) => setProductCategory(e.target.value)}
+                placeholder="e.g., dairy"
+              />
+            </div>
+
+            <div class="mb-md">
+              <label>Unit</label>
+              <input
+                type="text"
+                value={productUnit}
+                onInput={(e) => setProductUnit(e.target.value)}
+                placeholder="e.g., litre"
+              />
+            </div>
+
+            <div class="mb-md">
+              <label>Sell Price (KES)</label>
+              <input
+                type="number"
+                value={productSellPrice}
+                onInput={(e) => setProductSellPrice(e.target.value)}
+                placeholder="e.g., 60"
+              />
+            </div>
+
+            <div class="mb-md">
+              <label>Cost Price (KES) - Hidden from Attendants</label>
+              <input
+                type="number"
+                value={productCostPrice}
+                onInput={(e) => setProductCostPrice(e.target.value)}
+                placeholder="e.g., 40"
+              />
+            </div>
+
+            <div class="mb-md">
+              <label>Reorder Level</label>
+              <input
+                type="number"
+                value={productReorderLevel}
+                onInput={(e) => setProductReorderLevel(e.target.value)}
+                placeholder="e.g., 20"
+              />
+            </div>
+
+            {editingProduct ? (
+              <div class="flex gap-sm">
+                <button class="btn btn-primary" onClick={handleUpdateProduct} disabled={savingProduct}>
+                  {savingProduct ? 'Updating...' : 'Update Product'}
+                </button>
+                <button
+                  class="btn btn-ghost"
+                  onClick={() => {
+                    setEditingProduct(null);
+                    setProductName('');
+                    setProductCategory('');
+                    setProductUnit('');
+                    setProductSellPrice('');
+                    setProductCostPrice('');
+                    setProductReorderLevel('');
+                  }}
+                  disabled={savingProduct}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button class="btn btn-primary btn-block" onClick={handleAddProduct} disabled={savingProduct}>
+                {savingProduct ? 'Adding...' : 'Add Product'}
+              </button>
+            )}
+          </div>
+
+          {/* Products List */}
+          <div class="card">
+            <h3>Products</h3>
+            <div class="grid grid-1">
+              {products.map(product => (
+                <div
+                  key={product.id}
+                  class="flex justify-between items-center"
+                  style="padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-gray-200);"
+                >
+                  <div>
+                    <div class="font-bold">{product.name}</div>
+                    <div class="text-sm text-gray">
+                      {formatCurrency(product.sellPrice)} / {product.unit}
+                    </div>
+                  </div>
+                  <button
+                    class="btn btn-sm btn-outline"
+                    onClick={() => handleEditProduct(product)}
+                  >
+                    Edit
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Team Management */}
+      {activeTab === 'team' && user.role === ROLES.OWNER && (
+        <div>
+          <div class="card mb-lg">
+            <h3>Invite Team Member</h3>
+            
+            <div class="mb-md">
+              <label>Email Address</label>
+              <input
+                type="email"
+                value={newUserEmail}
+                onInput={(e) => setNewUserEmail(e.target.value)}
+                placeholder="user@example.com"
+              />
+            </div>
+
+            <div class="mb-md">
+              <label>Role</label>
+              <select
+                value={newUserRole}
+                onChange={(e) => setNewUserRole(e.target.value)}
+              >
+                <option value={ROLES.ATTENDANT}>Attendant</option>
+                <option value={ROLES.MANAGER}>Manager</option>
+                <option value={ROLES.OWNER}>Owner</option>
+              </select>
+            </div>
+
+            <button class="btn btn-primary btn-block" onClick={handleInviteUser} disabled={invitingUser}>
+              {invitingUser ? 'Sending...' : 'Send Invite'}
+            </button>
+          </div>
+
+          {/* Team List */}
+          <div class="card">
+            <h3>Team Members</h3>
+            <div class="grid grid-1">
+              {users.map(u => (
+                <div
+                  key={u.id}
+                  class="flex justify-between items-center"
+                  style="padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-gray-200);"
+                >
+                  <div>
+                    <div class="font-bold">{u.name}</div>
+                    <div class="text-sm text-gray">{u.email}</div>
+                    <span class={`badge ${u.active ? 'badge-green' : 'badge-gray'}`}>
+                      {u.role} - {u.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  {u.role !== ROLES.OWNER && (
+                    <button
+                      class={`btn btn-sm ${u.active ? 'btn-danger' : 'btn-primary'}`}
+                      onClick={() => handleToggleUserActive(u.email, u.active)}
+                    >
+                      {u.active ? 'Deactivate' : 'Activate'}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Account Settings */}
+      {activeTab === 'account' && (
+        <div class="card">
+          <h3>Account</h3>
+          <div class="mb-md">
+            <div class="font-bold">{user.displayName}</div>
+            <div class="text-gray">{user.email}</div>
+            <span class="badge badge-green">{user.role}</span>
+          </div>
+          <div class="divider"></div>
+          <button class="btn btn-danger btn-block" onClick={onSignOut}>
+            Sign Out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

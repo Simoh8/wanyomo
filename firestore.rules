@@ -1,0 +1,159 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email)).data;
+    }
+    
+    function isActive() {
+      return getUserData().active == true;
+    }
+    
+    function hasRole(role) {
+      return getUserData().role == role;
+    }
+    
+    function isOwner() {
+      return hasRole('owner');
+    }
+    
+    function isAdmin() {
+      return hasRole('admin') || isOwner();
+    }
+    
+    function isManager() {
+      return hasRole('manager') || isAdmin();
+    }
+    
+    function isAttendant() {
+      return hasRole('attendant') || isManager();
+    }
+    
+    function canViewCosts() {
+      return isOwner() || isManager();
+    }
+    
+    function canVoid() {
+      return isOwner() || isManager();
+    }
+    
+    function canEditProduct() {
+      return isOwner();
+    }
+    
+    // Users collection - users can read their own data, admin can manage
+    match /users/{email} {
+      // Allow users to read their own data, admin can read all
+      allow read: if isAuthenticated() && (email == request.auth.token.email || isAdmin());
+      
+      // Allow admin to manage users
+      // Also allow first-time admin to create their own document
+      allow write: if isAuthenticated() && (
+        isAdmin() || 
+        (email == request.auth.token.email && !exists(/databases/$(database)/documents/users/$(email)))
+      );
+    }
+    
+    // Products collection
+    match /products/{productId} {
+      allow read: if isAuthenticated() && isAttendant();
+      allow create: if isAuthenticated() && isOwner();
+      allow update: if isAuthenticated() && canEditProduct();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // Product costs - restricted (Owner and Manager only)
+    match /productCosts/{productId} {
+      allow read: if isAuthenticated() && canViewCosts();
+      allow write: if isAuthenticated() && isOwner();
+    }
+    
+    // Customers collection
+    match /customers/{customerId} {
+      allow read: if isAuthenticated() && isAttendant();
+      allow create: if isAuthenticated() && isAttendant();
+      allow update: if isAuthenticated() && isAttendant();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // Transactions collection
+    match /transactions/{transactionId} {
+      // Attendants can read their own transactions and today's
+      allow read: if isAuthenticated() && isAttendant();
+      
+      // Attendants can create sales and payments
+      allow create: if isAuthenticated() && isAttendant();
+      
+      // Only Managers/Owners can update (void)
+      allow update: if isAuthenticated() && canVoid();
+      
+      // Only Owner can delete (admin cannot delete sales as they interfere with other records)
+      allow delete: if isAuthenticated() && isOwner();
+    }
+    
+    // Stock movements collection
+    match /stockMovements/{movementId} {
+      allow read: if isAuthenticated() && isAttendant();
+      allow create: if isAuthenticated() && isManager();
+      allow update: if isAuthenticated() && isOwner();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // Stock takes collection
+    match /stockTakes/{stockTakeId} {
+      allow read: if isAuthenticated() && isManager();
+      allow create: if isAuthenticated() && isManager();
+      allow update: if isAuthenticated() && isManager();
+      // Only Owner can delete (admin cannot delete stock intake as it interferes with other records)
+      allow delete: if isAuthenticated() && isOwner();
+    }
+    
+    // Suppliers collection
+    match /suppliers/{supplierId} {
+      allow read: if isAuthenticated() && isAttendant();
+      allow create: if isAuthenticated() && isManager();
+      allow update: if isAuthenticated() && isManager();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // Expense categories
+    match /expenseCategories/{categoryId} {
+      allow read: if isAuthenticated() && isAttendant();
+      allow create: if isAuthenticated() && isOwner();
+      allow update: if isAuthenticated() && isOwner();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // Day closings
+    match /dayClosings/{date} {
+      allow read: if isAuthenticated() && isAttendant();
+      allow create: if isAuthenticated() && isManager();
+      allow update: if isAuthenticated() && isManager();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // Daily summaries (cached aggregates)
+    match /dailySummaries/{date} {
+      allow read: if isAuthenticated() && isAttendant();
+      allow write: if isAuthenticated() && isManager();
+    }
+    
+    // Audit log - Owner only
+    match /auditLog/{logId} {
+      allow read: if isAuthenticated() && isOwner();
+      allow create: if isAuthenticated() && isOwner();
+    }
+    
+    // Settings - Owner only
+    match /settings/{settingId} {
+      allow read: if isAuthenticated() && isAttendant();
+      allow write: if isAuthenticated() && isOwner();
+    }
+  }
+}

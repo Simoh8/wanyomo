@@ -1,0 +1,25 @@
+{
+  "name": "shamba-books",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "firebase": "^13.0.0",
+    "preact": "^10.29.8"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "@vitest/ui": "^3.2.7",
+    "jsdom": "^30.1.2",
+    "vite": "^8.3.0",
+    "vitest": "^3.2.7"
+  }
+}
