@@ -192,7 +192,31 @@ Open http://localhost:5173 in your browser.
 3. Enter the team member's email
 4. Select their role (Attendant or Manager)
 5. Click "Send Invite"
-6. The team member can now sign in with their Google account
+6. The team member will receive an email invitation and can sign in with their Google account
+
+### Email Configuration (Optional)
+
+To enable email invitations, configure EmailJS:
+
+1. Create an account at [EmailJS](https://www.emailjs.com/)
+2. Create an email service (e.g., Gmail, Outlook)
+3. Create an email template with these variables:
+   - `{{to_email}}` - Recipient email
+   - `{{to_name}}` - Recipient name
+   - `{{from_name}}` - Inviter name
+   - `{{from_email}}` - Inviter email
+   - `{{role}}` - Assigned role
+   - `{{app_name}}` - Application name
+   - `{{invite_link}}` - App URL
+4. Add your EmailJS credentials to `.env`:
+   ```env
+   VITE_EMAILJS_SERVICE_ID=your_service_id
+   VITE_EMAILJS_TEMPLATE_ID=your_template_id
+   VITE_EMAILJS_PUBLIC_KEY=your_public_key
+   ```
+5. Restart the development server
+
+If EmailJS is not configured, invitations will still work but no email will be sent.
 
 ## Installing the PWA on Mobile
 

@@ -6,6 +6,7 @@ import { collections, createProduct, updateProduct, createCustomer, getSetting, 
 import { ROLES } from '../auth/index.js';
 import { formatCurrency } from '../lib/utils.js';
 import { showToast } from '../components/Toast.jsx';
+import { sendInviteEmail } from '../lib/emailjs.js';
 
 export default function Settings({ user, onSignOut }) {
   const [activeTab, setActiveTab] = useState('general');
@@ -215,6 +216,7 @@ export default function Settings({ user, onSignOut }) {
     setInvitingUser(true);
 
     try {
+      // Add user to Firestore
       await setDoc(doc(collections.users, newUserEmail), {
         email: newUserEmail,
         name: newUserEmail.split('@')[0],
@@ -225,7 +227,23 @@ export default function Settings({ user, onSignOut }) {
         lastLoginAt: null,
       });
 
-      showToast('User invited successfully', 'success');
+      // Send invitation email
+      try {
+        const appName = await getSetting('businessDetails').then(details => details?.name) || 'Shamba Books';
+        await sendInviteEmail(
+          newUserEmail,
+          user.displayName || user.email.split('@')[0],
+          user.email,
+          newUserRole,
+          appName
+        );
+        showToast('User invited and email sent successfully', 'success');
+      } catch (emailError) {
+        console.error('Email sending failed:', emailError);
+        // Still show success for user creation, but warn about email
+        showToast('User invited, but email failed to send. Check EmailJS configuration.', 'warning');
+      }
+
       setNewUserEmail('');
       setNewUserRole(ROLES.ATTENDANT);
       loadSettingsData();
@@ -745,6 +763,16 @@ export default function Settings({ user, onSignOut }) {
         <div>
           <div class="card mb-lg">
             <h3>Invite Team Member</h3>
+            {!import.meta.env.VITE_EMAILJS_SERVICE_ID && (
+              <div style="background-color: #fff3cd; border: 1px solid #ffc107; padding: var(--space-md); border-radius: var(--radius-md); margin-bottom: var(--space-md);">
+                <p style="margin: 0; color: #856404;">
+                  <strong>Email not configured:</strong> Invitations will work, but no email will be sent.
+                  <a href="https://www.emailjs.com/" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: underline;">
+                    Set up EmailJS
+                  </a> to enable email invitations.
+                </p>
+              </div>
+            )}
             
             <div class="mb-md">
               <label>Email Address</label>
